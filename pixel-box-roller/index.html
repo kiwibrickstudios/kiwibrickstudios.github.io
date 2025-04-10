@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" href="icon.png" type="image/png">
-    <title>Pixel Box Roller</title>
+    <title>Pixel Box Roller Turbo</title>
     <style>
         body {
             background-color: #1a1a2e;
@@ -304,11 +304,61 @@
             border-width: 4px;
             border-image: repeating-linear-gradient(45deg, #4a4a6a, #4a4a6a 2px, #3a3a5a 2px, #3a3a5a 4px) 4;
         }
+
+        /* New combo meter styles */
+        .combo-meter {
+            height: 10px;
+            background-color: #333;
+            margin: 10px 0;
+            position: relative;
+            border: 2px solid #444;
+        }
+
+        .combo-fill {
+            height: 100%;
+            background: linear-gradient(to right, #4CAF50, #8BC34A);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .combo-text {
+            position: absolute;
+            right: 5px;
+            top: -2px;
+            font-size: 10px;
+            color: white;
+        }
+
+        /* New jackpot animation */
+        @keyframes jackpot {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
+
+        .jackpot {
+            animation: jackpot 0.5s 3;
+        }
+
+        /* New critical hit style */
+        .critical {
+            position: relative;
+        }
+
+        .critical::after {
+            content: "CRITICAL!";
+            position: absolute;
+            top: -15px;
+            right: -10px;
+            font-size: 10px;
+            color: #ff5555;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container pixel-border">
-        <h1>PIXEL BOX ROLLER</h1>
+        <h1>PIXEL BOX ROLLER TURBO</h1>
         
         <div class="stats-bar pixel-border">
             <div class="stat">
@@ -317,19 +367,27 @@
             </div>
             <div class="stat">
                 <div class="stat-icon">🎁</div>
-                <div id="rolls">2 rolls</div>
+                <div id="rolls">5 rolls</div>
             </div>
             <div class="stat">
                 <div class="stat-icon">🍀</div>
                 <div id="luck">1.0x luck</div>
+            </div>
+            <div class="stat">
+                <div class="stat-icon">🔥</div>
+                <div id="combo">1.0x combo</div>
             </div>
         </div>
         
         <div class="game-area">
             <div class="roll-section pixel-border">
                 <h2>Roll Box</h2>
+                <div class="combo-meter">
+                    <div class="combo-fill" id="combo-fill"></div>
+                    <div class="combo-text" id="combo-text">No combo</div>
+                </div>
                 <div class="box" id="box">❓</div>
-                <button class="roll-button" id="roll-button">ROLL (Cost: 0)</button>
+                <button class="roll-button" id="roll-button">ROLL (FREE!)</button>
                 <div id="last-roll"></div>
             </div>
             
@@ -348,83 +406,89 @@
     <div class="notification" id="notification"></div>
 
     <script>
-        // Game state
+        // Enhanced Game state with faster progression
         const state = {
-            cash: 25,
-            rolls: 5,
-            maxRolls: 5,
+            cash: 10, // Start with $10 to get going faster
+            rolls: 5, // Start with more rolls
+            maxRolls: 5, // Higher base capacity
             luck: 1.0,
+            combo: 1.0,
+            comboTime: 0,
             inventory: [],
-            autoRollInterval: 10000,
+            autoRollInterval: null,
             lastRoll: null,
+            jackpotCounter: 0,
             upgrades: {
-                betterOdds1: { name: "Lucky Charm", desc: "Slightly increase luck (+0.2x)", cost: 50, purchased: false, effect: () => { state.luck += 0.2; updateLuckDisplay(); } },
-                betterOdds2: { name: "Four-Leaf Clover", desc: "Increase luck (+0.3x)", cost: 150, purchased: false, effect: () => { state.luck += 0.3; updateLuckDisplay(); } },
-                betterOdds3: { name: "Rabbit's Foot", desc: "Greatly increase luck (+0.5x)", cost: 400, purchased: false, effect: () => { state.luck += 0.5; updateLuckDisplay(); } },
-                betterOdds4: { name: "Horseshoe", desc: "Massively increase luck (+1.0x)", cost: 1000, purchased: false, effect: () => { state.luck += 1.0; updateLuckDisplay(); } },
-                moreRolls1: { name: "Extra Pocket", desc: "Increase max rolls by 1", cost: 100, purchased: false, effect: () => { state.maxRolls += 1; updateRollsDisplay(); } },
-                moreRolls2: { name: "Bigger Pockets", desc: "Increase max rolls by 2", cost: 300, purchased: false, effect: () => { state.maxRolls += 2; updateRollsDisplay(); } },
-                autoRoll1: { name: "Auto Roller", desc: "Get 1 free roll every 2 minutes", cost: 200, purchased: false, effect: () => { startAutoRoll(120000); } },
-                autoRoll2: { name: "Better Auto Roller", desc: "Get 1 free roll every minute", cost: 500, purchased: false, effect: () => { startAutoRoll(60000); } },
-                autoRoll3: { name: "Premium Auto Roller", desc: "Get 2 free rolls every minute", cost: 1200, purchased: false, effect: () => { startAutoRoll(30000); } },
-                sellMulti1: { name: "Haggling 101", desc: "Get 10% more when selling", cost: 250, purchased: false, effect: () => {} },
-                sellMulti2: { name: "Master Negotiator", desc: "Get 25% more when selling", cost: 600, purchased: false, effect: () => {} },
-                rollDiscount1: { name: "Membership Card", desc: "Rolls cost 1 less", cost: 350, purchased: false, effect: () => {} },
-                rollDiscount2: { name: "VIP Pass", desc: "Rolls cost 2 less", cost: 800, purchased: false, effect: () => {} },
-                inventorySpace1: { name: "Backpack", desc: "Double inventory space", cost: 150, purchased: false, effect: () => {} },
-                inventorySpace2: { name: "Storage Unit", desc: "Triple inventory space", cost: 400, purchased: false, effect: () => {} }
+                betterOdds1: { name: "Lucky Charm+", desc: "Increase luck (+0.3x)", cost: 30, purchased: false, effect: () => { state.luck += 0.3; updateLuckDisplay(); } },
+                betterOdds2: { name: "Four-Leaf Clover+", desc: "Increase luck (+0.5x)", cost: 100, purchased: false, effect: () => { state.luck += 0.5; updateLuckDisplay(); } },
+                betterOdds3: { name: "Rabbit's Foot+", desc: "Greatly increase luck (+0.8x)", cost: 250, purchased: false, effect: () => { state.luck += 0.8; updateLuckDisplay(); } },
+                betterOdds4: { name: "Horseshoe+", desc: "Massively increase luck (+1.5x)", cost: 600, purchased: false, effect: () => { state.luck += 1.5; updateLuckDisplay(); } },
+                moreRolls1: { name: "Extra Pocket+", desc: "Increase max rolls by 2", cost: 50, purchased: false, effect: () => { state.maxRolls += 2; updateRollsDisplay(); } },
+                moreRolls2: { name: "Bigger Pockets+", desc: "Increase max rolls by 5", cost: 150, purchased: false, effect: () => { state.maxRolls += 5; updateRollsDisplay(); } },
+                autoRoll1: { name: "Auto Roller+", desc: "Get 1 free roll every 30 seconds", cost: 100, purchased: false, effect: () => { startAutoRoll(30000); } },
+                autoRoll2: { name: "Better Auto Roller+", desc: "Get 1 free roll every 15 seconds", cost: 250, purchased: false, effect: () => { startAutoRoll(15000); } },
+                autoRoll3: { name: "Premium Auto Roller+", desc: "Get 2 free rolls every 10 seconds", cost: 500, purchased: false, effect: () => { startAutoRoll(10000, 2); } },
+                sellMulti1: { name: "Haggling 101+", desc: "Get 20% more when selling", cost: 150, purchased: false, effect: () => {} },
+                sellMulti2: { name: "Master Negotiator+", desc: "Get 50% more when selling", cost: 350, purchased: false, effect: () => {} },
+                rollDiscount1: { name: "Membership Card+", desc: "Rolls always free", cost: 200, purchased: false, effect: () => {} },
+                inventorySpace1: { name: "Backpack+", desc: "Double inventory space", cost: 100, purchased: false, effect: () => {} },
+                inventorySpace2: { name: "Storage Unit+", desc: "Triple inventory space", cost: 250, purchased: false, effect: () => {} },
+                comboBooster: { name: "Combo Booster", desc: "Combos last longer and give bigger bonuses", cost: 400, purchased: false, effect: () => {} }
             }
         };
 
-        // Emoji data with rarities and values
+        // Enhanced emoji data with higher values and better rarities
         const emojis = [
-            // Common (60% chance)
-            { emoji: "🍎", name: "Apple", rarity: "common", value: 5 },
-            { emoji: "🍞", name: "Bread", rarity: "common", value: 5 },
-            { emoji: "🥛", name: "Milk", rarity: "common", value: 5 },
-            { emoji: "🍭", name: "Lollipop", rarity: "common", value: 5 },
-            { emoji: "🍪", name: "Cookie", rarity: "common", value: 5 },
+            // Common (50% chance) - increased value
+            { emoji: "🍎", name: "Apple", rarity: "common", value: 10 },
+            { emoji: "🍞", name: "Bread", rarity: "common", value: 10 },
+            { emoji: "🥛", name: "Milk", rarity: "common", value: 10 },
+            { emoji: "🍭", name: "Lollipop", rarity: "common", value: 10 },
+            { emoji: "🍪", name: "Cookie", rarity: "common", value: 10 },
             
-            // Uncommon (25% chance)
-            { emoji: "🍕", name: "Pizza", rarity: "uncommon", value: 15 },
-            { emoji: "🍔", name: "Hamburger", rarity: "uncommon", value: 15 },
-            { emoji: "🍩", name: "Donut", rarity: "uncommon", value: 15 },
-            { emoji: "🍣", name: "Sushi", rarity: "uncommon", value: 15 },
-            { emoji: "🍫", name: "Chocolate", rarity: "uncommon", value: 15 },
+            // Uncommon (30% chance) - increased value and chance
+            { emoji: "🍕", name: "Pizza", rarity: "uncommon", value: 25 },
+            { emoji: "🍔", name: "Hamburger", rarity: "uncommon", value: 25 },
+            { emoji: "🍩", name: "Donut", rarity: "uncommon", value: 25 },
+            { emoji: "🍣", name: "Sushi", rarity: "uncommon", value: 25 },
+            { emoji: "🍫", name: "Chocolate", rarity: "uncommon", value: 25 },
             
-            // Rare (10% chance)
-            { emoji: "🎮", name: "Game Controller", rarity: "rare", value: 40 },
-            { emoji: "📱", name: "Smartphone", rarity: "rare", value: 40 },
-            { emoji: "💎", name: "Gem Stone", rarity: "rare", value: 40 },
-            { emoji: "🎸", name: "Guitar", rarity: "rare", value: 40 },
-            { emoji: "👑", name: "Crown", rarity: "rare", value: 40 },
+            // Rare (15% chance) - increased value and chance
+            { emoji: "🎮", name: "Game Controller", rarity: "rare", value: 75 },
+            { emoji: "📱", name: "Smartphone", rarity: "rare", value: 75 },
+            { emoji: "💎", name: "Gem Stone", rarity: "rare", value: 75 },
+            { emoji: "🎸", name: "Guitar", rarity: "rare", value: 75 },
+            { emoji: "👑", name: "Crown", rarity: "rare", value: 75 },
             
-            // Epic (4% chance)
-            { emoji: "🚗", name: "Car", rarity: "epic", value: 100 },
-            { emoji: "🏠", name: "House", rarity: "epic", value: 100 },
-            { emoji: "🛩️", name: "Airplane", rarity: "epic", value: 100 },
-            { emoji: "⚔️", name: "Sword", rarity: "epic", value: 100 },
-            { emoji: "🏆", name: "Trophy", rarity: "epic", value: 100 },
+            // Epic (4% chance) - increased value
+            { emoji: "🚗", name: "Car", rarity: "epic", value: 200 },
+            { emoji: "🏠", name: "House", rarity: "epic", value: 200 },
+            { emoji: "🛩️", name: "Airplane", rarity: "epic", value: 200 },
+            { emoji: "⚔️", name: "Sword", rarity: "epic", value: 200 },
+            { emoji: "🏆", name: "Trophy", rarity: "epic", value: 200 },
             
-            // Legendary (0.9% chance)
-            { emoji: "🐉", name: "Dragon", rarity: "legendary", value: 500 },
-            { emoji: "🦄", name: "Unicorn", rarity: "legendary", value: 500 },
-            { emoji: "👽", name: "Alien", rarity: "legendary", value: 500 },
-            { emoji: "🌈", name: "Rainbow", rarity: "legendary", value: 500 },
-            { emoji: "🌋", name: "Volcano", rarity: "legendary", value: 500 },
+            // Legendary (0.9% chance) - increased value and chance
+            { emoji: "🐉", name: "Dragon", rarity: "legendary", value: 1000 },
+            { emoji: "🦄", name: "Unicorn", rarity: "legendary", value: 1000 },
+            { emoji: "👽", name: "Alien", rarity: "legendary", value: 1000 },
+            { emoji: "🌈", name: "Rainbow", rarity: "legendary", value: 1000 },
+            { emoji: "🌋", name: "Volcano", rarity: "legendary", value: 1000 },
             
-            // Mythic (0.1% chance)
-            { emoji: "🌌", name: "Galaxy", rarity: "mythic", value: 2500 },
-            { emoji: "🕳️", name: "Black Hole", rarity: "mythic", value: 2500 },
-            { emoji: "🧿", name: "All-Seeing Eye", rarity: "mythic", value: 2500 },
-            { emoji: "☯️", name: "Yin Yang", rarity: "mythic", value: 2500 },
-            { emoji: "⚛️", name: "Atom", rarity: "mythic", value: 2500 }
+            // Mythic (0.1% chance) - increased value
+            { emoji: "🌌", name: "Galaxy", rarity: "mythic", value: 5000 },
+            { emoji: "🕳️", name: "Black Hole", rarity: "mythic", value: 5000 },
+            { emoji: "🧿", name: "All-Seeing Eye", rarity: "mythic", value: 5000 },
+            { emoji: "☯️", name: "Yin Yang", rarity: "mythic", value: 5000 },
+            { emoji: "⚛️", name: "Atom", rarity: "mythic", value: 5000 }
         ];
 
         // DOM elements
         const cashDisplay = document.getElementById('cash');
         const rollsDisplay = document.getElementById('rolls');
         const luckDisplay = document.getElementById('luck');
+        const comboDisplay = document.getElementById('combo');
+        const comboFill = document.getElementById('combo-fill');
+        const comboText = document.getElementById('combo-text');
         const boxElement = document.getElementById('box');
         const rollButton = document.getElementById('roll-button');
         const inventoryElement = document.getElementById('inventory');
@@ -438,10 +502,11 @@
             updateCashDisplay();
             updateRollsDisplay();
             updateLuckDisplay();
+            updateComboDisplay();
             renderUpgrades();
             
             // Load saved game if available
-            const savedGame = localStorage.getItem('pixelBoxRollerSave');
+            const savedGame = localStorage.getItem('pixelBoxRollerTurboSave');
             if (savedGame) {
                 const parsed = JSON.parse(savedGame);
                 Object.assign(state, parsed);
@@ -449,14 +514,17 @@
                 renderInventory();
             }
             
-            // Start passive roll generation
-            startAutoRoll(60000);
+            // Start passive roll generation (faster than original)
+            startAutoRoll(30000);
             
             // Set up event listeners
             rollButton.addEventListener('click', rollBox);
             
             // Set up auto-save
             setInterval(saveGame, 10000);
+            
+            // Combo timer
+            setInterval(updateComboTimer, 1000);
         }
 
         // Update all displays
@@ -464,6 +532,7 @@
             updateCashDisplay();
             updateRollsDisplay();
             updateLuckDisplay();
+            updateComboDisplay();
             renderInventory();
         }
 
@@ -475,7 +544,7 @@
         // Update rolls display
         function updateRollsDisplay() {
             rollsDisplay.textContent = `${state.rolls}/${state.maxRolls} rolls`;
-            rollButton.textContent = `ROLL (Cost: ${getRollCost()})`;
+            rollButton.textContent = state.upgrades.rollDiscount1.purchased ? "ROLL (FREE!)" : "ROLL (FREE!)";
             rollButton.disabled = state.rolls <= 0;
         }
 
@@ -484,15 +553,45 @@
             luckDisplay.textContent = `${state.luck.toFixed(1)}x luck`;
         }
 
-        // Get current roll cost
-        function getRollCost() {
-            let cost = 0;
-            if (state.upgrades.rollDiscount1.purchased) cost -= 1;
-            if (state.upgrades.rollDiscount2.purchased) cost -= 1;
-            return Math.max(0, cost);
+        // Update combo display
+        function updateComboDisplay() {
+            comboDisplay.textContent = `${state.combo.toFixed(1)}x combo`;
+            
+            // Update combo meter
+            const comboPercent = Math.min(100, (state.comboTime / 30) * 100);
+            comboFill.style.width = `${comboPercent}%`;
+            
+            if (state.comboTime > 0) {
+                comboText.textContent = `Combo: ${state.combo.toFixed(1)}x`;
+                comboFill.style.backgroundColor = getComboColor(state.combo);
+            } else {
+                comboText.textContent = "No combo";
+                comboFill.style.width = "0%";
+            }
         }
 
-        // Roll the box for an emoji
+        // Get color based on combo multiplier
+        function getComboColor(combo) {
+            if (combo < 1.5) return "#4CAF50";
+            if (combo < 2.5) return "#8BC34A";
+            if (combo < 4) return "#FFC107";
+            if (combo < 6) return "#FF9800";
+            return "#FF5722";
+        }
+
+        // Update combo timer
+        function updateComboTimer() {
+            if (state.comboTime > 0) {
+                state.comboTime--;
+                if (state.comboTime <= 0) {
+                    state.combo = 1.0;
+                    showNotification("Combo expired!", "error");
+                }
+                updateComboDisplay();
+            }
+        }
+
+        // Roll the box for an emoji (enhanced with combo system)
         function rollBox() {
             if (state.rolls <= 0) return;
             
@@ -506,14 +605,15 @@
             setTimeout(() => {
                 boxElement.classList.remove('shake');
                 
-                // Calculate roll with luck
+                // Calculate roll with luck and combo
                 let roll = Math.random() * 100;
-                roll = Math.min(99.9, roll / state.luck); // Higher luck makes better rolls more likely
+                const effectiveLuck = state.luck * state.combo;
+                roll = Math.min(99.9, roll / effectiveLuck);
                 
-                // Determine rarity
+                // Determine rarity with improved chances
                 let rarity;
-                if (roll < 60) rarity = "common";
-                else if (roll < 85) rarity = "uncommon";
+                if (roll < 50) rarity = "common";
+                else if (roll < 80) rarity = "uncommon";
                 else if (roll < 95) rarity = "rare";
                 else if (roll < 99) rarity = "epic";
                 else if (roll < 99.9) rarity = "legendary";
@@ -527,17 +627,88 @@
                 state.inventory.push(rolledEmoji);
                 state.lastRoll = rolledEmoji;
                 
+                // Update combo
+                updateComboAfterRoll(rarity);
+                
+                // Check for jackpot (3 legendaries/mythics in a row)
+                if (rarity === "legendary" || rarity === "mythic") {
+                    state.jackpotCounter++;
+                    if (state.jackpotCounter >= 3) {
+                        triggerJackpot();
+                        state.jackpotCounter = 0;
+                    }
+                } else {
+                    state.jackpotCounter = 0;
+                }
+                
                 // Update display
                 boxElement.textContent = rolledEmoji.emoji;
-                lastRollDisplay.innerHTML = `You got: <span class="rarity-${rolledEmoji.rarity}">${rolledEmoji.emoji} ${rolledEmoji.name} (${rolledEmoji.rarity})</span>`;
+                let displayText = `You got: <span class="rarity-${rolledEmoji.rarity}">${rolledEmoji.emoji} ${rolledEmoji.name} (${rolledEmoji.rarity})</span>`;
                 
-                // Show notification
-                showNotification(`Got ${rolledEmoji.emoji} ${rolledEmoji.name} (${rolledEmoji.rarity})`, rolledEmoji.rarity);
+                // Add critical tag for high combo rolls
+                if (state.combo >= 3) {
+                    displayText += " <span style='color:#ff5555;font-size:12px;'>(CRITICAL!)</span>";
+                }
+                
+                lastRollDisplay.innerHTML = displayText;
+                
+                // Show notification with combo info if applicable
+                let notifText = `Got ${rolledEmoji.emoji} ${rolledEmoji.name} (${rolledEmoji.rarity})`;
+                if (state.combo > 1.5) {
+                    notifText += ` with ${state.combo.toFixed(1)}x combo!`;
+                }
+                
+                showNotification(notifText, rolledEmoji.rarity);
                 
                 // Update inventory
                 renderInventory();
                 
-            }, 500);
+            }, 300); // Faster animation than original
+        }
+
+        // Update combo after a roll
+        function updateComboAfterRoll(rarity) {
+            // Reset combo timer (longer if upgrade purchased)
+            const baseTime = state.upgrades.comboBooster.purchased ? 40 : 30;
+            state.comboTime = baseTime;
+            
+            // Increase combo based on rarity
+            let comboIncrease = 0;
+            switch(rarity) {
+                case "common": comboIncrease = 0.05; break;
+                case "uncommon": comboIncrease = 0.1; break;
+                case "rare": comboIncrease = 0.2; break;
+                case "epic": comboIncrease = 0.3; break;
+                case "legendary": comboIncrease = 0.5; break;
+                case "mythic": comboIncrease = 0.8; break;
+            }
+            
+            // Bigger increase if combo booster purchased
+            if (state.upgrades.comboBooster.purchased) {
+                comboIncrease *= 1.5;
+            }
+            
+            state.combo += comboIncrease;
+            updateComboDisplay();
+        }
+
+        // Trigger jackpot bonus
+        function triggerJackpot() {
+            // Add cash bonus
+            const jackpotAmount = 5000;
+            state.cash += jackpotAmount;
+            updateCashDisplay();
+            
+            // Add 5 free rolls
+            state.rolls = Math.min(state.rolls + 5, state.maxRolls);
+            updateRollsDisplay();
+            
+            // Show jackpot animation
+            boxElement.classList.add('jackpot');
+            setTimeout(() => boxElement.classList.remove('jackpot'), 1500);
+            
+            // Show notification
+            showNotification(`JACKPOT! $${jackpotAmount} and 5 free rolls!`, "mythic");
         }
 
         // Render inventory
@@ -547,7 +718,7 @@
             
             state.inventory.forEach((item, index) => {
                 const itemElement = document.createElement('div');
-                itemElement.className = 'emoji-item';
+                itemElement.className = `emoji-item ${state.combo >= 3 && index === state.inventory.length - 1 ? 'critical' : ''}`;
                 itemElement.innerHTML = `
                     <div class="emoji-icon">${item.emoji}</div>
                     <div class="emoji-rarity rarity-${item.rarity}">${item.rarity}</div>
@@ -559,15 +730,23 @@
             });
         }
 
-        // Get sell value for an item
+        // Get sell value for an item (enhanced with combo bonus)
         function getSellValue(item) {
             let value = item.value;
-            if (state.upgrades.sellMulti1.purchased) value *= 1.1;
-            if (state.upgrades.sellMulti2.purchased) value *= 1.25;
+            
+            // Apply sell multipliers
+            if (state.upgrades.sellMulti1.purchased) value *= 1.2;
+            if (state.upgrades.sellMulti2.purchased) value *= 1.5;
+            
+            // Apply combo bonus to recently rolled items
+            if (state.combo > 1.0 && state.inventory.indexOf(item) >= state.inventory.length - 3) {
+                value *= state.combo;
+            }
+            
             return Math.floor(value);
         }
 
-        // Sell an item
+        // Sell an item (with combo bonus potential)
         function sellItem(index) {
             const item = state.inventory[index];
             const value = getSellValue(item);
@@ -609,7 +788,7 @@
             if (state.cash >= upgrade.cost && !upgrade.purchased) {
                 state.cash -= upgrade.cost;
                 upgrade.purchased = true;
-                upgrade.effect();
+                if (upgrade.effect) upgrade.effect();
                 
                 updateCashDisplay();
                 renderUpgrades();
@@ -641,34 +820,37 @@
                 notification.classList.add('show');
                 setTimeout(() => {
                     notification.classList.remove('show');
-                }, 3000);
+                }, 2000); // Shorter notification time than original
             }, 10);
         }
 
-        // Start auto roll generation
-        function startAutoRoll(interval) {
+        // Start auto roll generation (enhanced with parameter for number of rolls)
+        function startAutoRoll(interval, rolls = 1) {
             if (state.autoRollInterval) {
                 clearInterval(state.autoRollInterval);
             }
             
             state.autoRollInterval = setInterval(() => {
                 if (state.rolls < state.maxRolls) {
-                    state.rolls++;
+                    state.rolls = Math.min(state.rolls + rolls, state.maxRolls);
                     updateRollsDisplay();
-                    showNotification("Free roll added!", "upgrade");
+                    showNotification(`Free ${rolls > 1 ? rolls + ' rolls' : 'roll'} added!`, "upgrade");
                 }
             }, interval);
         }
 
         // Save game state
         function saveGame() {
-            localStorage.setItem('pixelBoxRollerSave', JSON.stringify({
+            localStorage.setItem('pixelBoxRollerTurboSave', JSON.stringify({
                 cash: state.cash,
                 rolls: state.rolls,
                 maxRolls: state.maxRolls,
                 luck: state.luck,
+                combo: state.combo,
+                comboTime: state.comboTime,
                 inventory: state.inventory,
-                upgrades: state.upgrades
+                upgrades: state.upgrades,
+                jackpotCounter: state.jackpotCounter
             }));
         }
 
