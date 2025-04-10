@@ -350,12 +350,12 @@
     <script>
         // Game state
         const state = {
-            cash: 0,
-            rolls: 2,
-            maxRolls: 2,
+            cash: 25,
+            rolls: 5,
+            maxRolls: 5,
             luck: 1.0,
             inventory: [],
-            autoRollInterval: null,
+            autoRollInterval: 10000,
             lastRoll: null,
             upgrades: {
                 betterOdds1: { name: "Lucky Charm", desc: "Slightly increase luck (+0.2x)", cost: 50, purchased: false, effect: () => { state.luck += 0.2; updateLuckDisplay(); } },
