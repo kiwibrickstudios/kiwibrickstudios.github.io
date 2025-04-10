@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cat Empire</title>
+    <link rel="icon" href="cat.png" type="image/png">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        /* Loading Screen Styles */
+        #loadingScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #f9f9f9;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.5s ease-out;
+        }
+        
+        #loadingCat {
+            width: 100px;
+            height: 100px;
+            margin-bottom: 20px;
+            animation: pulse 1s infinite alternate;
+        }
+        
+        #loadingText {
+            font-size: 24px;
+            font-family: Arial, sans-serif;
+            height: 30px;
+        }
+        
+        @keyframes pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.1); }
+        }
+        
+        /* Game styles */
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Press Start 2P', monospace;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f5f1e7;
+            color: #3a2e25;
+            image-rendering: pixelated;
+            text-shadow: 1px 1px #fff;
+        }
+
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            -ms-user-select: none;
+        }
+    
+        #gameContent {
+            display: none;
+        }
+    
+        #header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+            gap: 60px;
+        }
+    
+        #money {
+            font-size: 24px;
+            color: #7e5e3c;
+            text-shadow: 1px 1px #fff;
+        }
+    
+        #cps {
+            font-size: 14px;
+            color: #a67c52;
+        }
+    
+        #mainContent {
+            display: flex;
+            gap: 40px;
+        }
+    
+        #catSection {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+    
+        #catImage {
+            width: 400px;
+            height: 400px;
+            cursor: pointer;
+            transition: transform 0.05s;
+        }
+    
+        #catImage:active {
+            transform: scale(0.95);
+        }
+    
+        #tabSection {
+            flex: 1;
+            background: #e8ddc5;
+            border: 4px double #bda37d;
+            padding: 16px;
+            box-shadow: inset 0 0 4px #bba88a;
+        }
+    
+        #tabsHeader {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+    
+        .tabButton, .building, #saveButton {
+            font-size: 12px;
+            padding: 10px;
+            background: #d0bfa6;
+            border: 2px solid #9e7e5c;
+            color: #3a2e25;
+            cursor: pointer;
+            image-rendering: pixelated;
+            box-shadow: 2px 2px 0 #6d533b;
+            font-family: 'Press Start 2P', monospace;
+        }
+
+        .tabButton:active, .building:active, #saveButton:active {
+            transform: translate(2px, 2px);
+            box-shadow: none;
+        }
+    
+        .tabButton:hover {
+            background: #c5ab86;
+        }
+    
+        .tabButton.active {
+            background: #a0835e;
+            color: #fff;
+            border-color: #6d533b;
+        }
+    
+        .tabContent {
+            display: none;
+        }
+    
+        .tabContent.active {
+            display: block;
+        }
+    
+        .building:hover {
+            transform: scale(1.02);
+            background-color: #e6d3b5;
+        }
+    
+        .building.unaffordable {
+            opacity: 0.5;
+            filter: grayscale(100%);
+            cursor: not-allowed;
+        }
+    
+        .buildingName {
+            font-size: 12px;
+            color: #5d4430;
+        }
+    
+        .buildingStats {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 6px;
+            font-size: 10px;
+            color: #6e5844;
+        }
+    
+        #saveArea {
+            position: fixed;
+            bottom: 12px;
+            left: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #fff4df;
+            border: 2px solid #d1b996;
+            padding: 6px 12px;
+            font-size: 10px;
+        }
+    
+        #version {
+            color: #6e5844;
+        }
+    
+        #saveButton {
+            padding: 4px 10px;
+            background: #a67c52;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 10px;
+            border: 2px solid #805e3f;
+        }
+    
+        #saveButton:hover {
+            background: #8b6740;
+        }
+    
+        .upgrade {
+            background: #e5d3b3;
+            border: 2px solid #b9a37f;
+            padding: 10px;
+            margin-top: 12px;
+        }
+    
+        .upgradeName {
+            font-size: 12px;
+            font-weight: bold;
+        }
+    
+        .upgradeDesc {
+            font-size: 10px;
+            margin-top: 4px;
+        }
+
+        .floatingPaw {
+            position: absolute;
+            pointer-events: none;
+            font-size: 24px;
+            animation: floatUp 1s ease-out forwards;
+            image-rendering: pixelated;
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-60px);
+            }
+        }
+
+        #changelogButton {
+    padding: 4px 10px;
+    background: #a67c52;
+    color: #fff;
+    border: 2px solid #805e3f;
+    cursor: pointer;
+    font-size: 10px;
+    font-family: 'Press Start 2P', monospace;
+    box-shadow: 2px 2px 0 #6d533b;
+}
+
+#changelogButton:hover {
+    background: #8b6740;
+}
+
+    </style>
+</head>
+<body>
+    <div id="loadingScreen">
+        <img id="loadingCat" src="cat.png" alt="Loading...">
+        <div id="loadingText">Loading.</div>
+    </div>
+
+    <div id="gameContent">
+        <div id="header">
+            <div id="money">$0.00</div>
+            <div id="cps">0 CPS</div>
+        </div>
+
+        <div id="mainContent">
+            <div id="catSection">
+                <img id="catImage" src="cat.png" onclick="clickCat(event)">
+            </div>
+
+            <div id="tabSection">
+                <div id="tabsHeader">
+                    <button class="tabButton active" onclick="switchTab('buildings')">Buildings</button>
+                    <button class="tabButton" onclick="switchTab('upgrades')">Upgrades</button>
+                </div>
+
+                <div id="buildingsTab" class="tabContent active">
+                    <!-- Buildings will be populated by JavaScript -->
+                </div>
+
+                <div id="upgradesTab" class="tabContent">
+                    <div class="upgrade">
+                        <div class="upgradeName">Coming Soon!</div>
+                        <div class="upgradeDesc">More upgrades will be added in future updates</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="saveArea">
+        <span id="version">v1.0.0</span>
+        <button id="saveButton" onclick="saveGame()">Save</button>
+        <button id="changelogButton" onclick="showChangelog()">Changelog</button>
+    </div>
+
+    <div id="changelogModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+background:#fff4df; border:2px solid #d1b996; padding:20px; z-index:2000; max-width:400px; font-size:10px; box-shadow:4px 4px #bda37d;">
+    <h3 style="margin-top:0; font-size:12px;">Changelog - v1.0.0</h3>
+    <ul style="padding-left:20px; line-height:1.6;">
+        <li>🖱️ Click the cat to earn money</li>
+        <li>🏗️ Purchase buildings that generate CPS</li>
+        <li>🔒 Upgrades tab placeholder for future content</li>
+        <li>💾 Save and load progress</li>
+        <li>🐱 Retro-styled pixel art UI and font</li>
+    </ul>
+    <button onclick="closeChangelog()" style="margin-top:12px; padding:6px 10px; background:#a67c52; color:#fff;
+    border:2px solid #805e3f; cursor:pointer;">Close</button>
+</div>
+
+
+    <script>
+        // Game state
+        let gameState = {
+            money: 0,
+            cps: 0,
+            cpc: 1,
+            buildingsOwned: {},
+            upgradesOwned: []
+        };
+
+        const buildings = {
+            toyGiver: { baseCost: 15, baseCPS: 0.1, name: "Toy Giver" },
+            feeder: { baseCost: 100, baseCPS: 1, name: "Feeder" },
+            playroom: { baseCost: 1100, baseCPS: 8, name: "Playroom" },
+            lure: { baseCost: 12000, baseCPS: 47, name: "Lure" },
+            foodRecipe: { baseCost: 120000, baseCPS: 260, name: "Food Recipe" },
+            magicTower: { baseCost: 1400000, baseCPS: 1400, name: "Magic Tower" }
+        };
+
+        // Loading screen functionality
+        const loadingScreen = document.getElementById('loadingScreen');
+        const loadingText = document.getElementById('loadingText');
+        const gameContent = document.getElementById('gameContent');
+        
+        // Animated loading text
+        let dots = 1;
+        const textInterval = setInterval(() => {
+            dots = (dots % 3) + 1;
+            loadingText.textContent = 'Loading' + '.'.repeat(dots);
+        }, 300);
+        
+        // Hide loading screen after 4 seconds
+        setTimeout(() => {
+            clearInterval(textInterval);
+            loadingScreen.style.opacity = '0';
+            setTimeout(() => {
+                loadingScreen.style.display = 'none';
+                gameContent.style.display = 'block';
+                initGame();
+            }, 500);
+        }, 2000); // Reduced loading time to 2 seconds for better UX
+
+        function initGame() {
+            initBuildings();
+            loadGame();
+            updateDisplay();
+            
+            // Game loop runs every second
+            setInterval(() => {
+                gameState.money += gameState.cps;
+                updateDisplay();
+            }, 1000);
+        }
+
+        function recalculateCPS() {
+            gameState.cps = 0;
+            for (const buildingId in gameState.buildingsOwned) {
+                const owned = gameState.buildingsOwned[buildingId] || 0;
+                gameState.cps += buildings[buildingId].baseCPS * owned;
+            }
+        }
+
+        function updateDisplay() {
+            document.getElementById('money').textContent = `$${formatNumber(gameState.money)}`;
+            document.getElementById('cps').textContent = `${formatNumber(gameState.cps)} CPS`;
+            
+            // Update building displays
+            for (const buildingId in buildings) {
+                const building = document.getElementById(buildingId);
+                if (building) {
+                    const owned = gameState.buildingsOwned[buildingId] || 0;
+                    const cost = Math.ceil(buildings[buildingId].baseCost * Math.pow(1.15, owned));
+                    
+                    building.innerHTML = `
+                        <div class="buildingName">${buildings[buildingId].name} (${owned})</div>
+                        <div class="buildingStats">
+                            <span>Cost: $${formatNumber(cost)}</span>
+                            <span>${formatNumber(buildings[buildingId].baseCPS)} CPS</span>
+                        </div>
+                    `;
+                    
+                    if (gameState.money >= cost) {
+                        building.classList.remove("unaffordable");
+                    } else {
+                        building.classList.add("unaffordable");
+                    }
+                }
+            }
+        }
+
+        function formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(2) + "M";
+            }
+            if (num >= 1000) {
+                return (num / 1000).toFixed(1) + "K";
+            }
+            return num.toFixed(num % 1 === 0 ? 0 : 1);
+        }
+
+        // Pool of paw elements for click animation
+        const pawPool = [];
+        const MAX_PAWS = 20;
+
+        function clickCat(event) {
+            gameState.money += gameState.cpc;
+            updateDisplay();
+
+            // Create or reuse paw element
+            let paw;
+            if (pawPool.length > 0) {
+                paw = pawPool.pop();
+            } else {
+                paw = document.createElement("div");
+                paw.className = "floatingPaw";
+                paw.textContent = "🐾";
+                document.body.appendChild(paw);
+            }
+
+            // Set position to cursor
+            paw.style.left = `${event.clientX}px`;
+            paw.style.top = `${event.clientY}px`;
+            paw.style.display = "block";
+            paw.style.animation = "none";
+            void paw.offsetWidth; // Trigger reflow
+            paw.style.animation = "floatUp 1s ease-out forwards";
+
+            // Return to pool after animation
+            setTimeout(() => {
+                paw.style.display = "none";
+                if (pawPool.length < MAX_PAWS) {
+                    pawPool.push(paw);
+                } else {
+                    paw.remove();
+                }
+            }, 1000);
+        }
+
+        function buyBuilding(buildingId) {
+            const owned = gameState.buildingsOwned[buildingId] || 0;
+            const cost = Math.ceil(buildings[buildingId].baseCost * Math.pow(1.15, owned));
+            
+            if (gameState.money >= cost) {
+                gameState.money -= cost;
+                gameState.buildingsOwned[buildingId] = (gameState.buildingsOwned[buildingId] || 0) + 1;
+                recalculateCPS();
+                updateDisplay();
+            }
+        }
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tabButton').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelector(`.tabButton[onclick="switchTab('${tabName}')"]`).classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tabContent').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(`${tabName}Tab`).classList.add('active');
+        }
+
+        function saveGame() {
+            localStorage.setItem('catClickerSave', JSON.stringify(gameState));
+            
+            // Show save confirmation
+            const saveButton = document.getElementById('saveButton');
+            saveButton.textContent = 'Saved!';
+            setTimeout(() => {
+                saveButton.textContent = 'Save';
+            }, 1000);
+        }
+
+        function loadGame() {
+            const save = localStorage.getItem('catClickerSave');
+            if (save) {
+                try {
+                    const parsed = JSON.parse(save);
+                    gameState = {
+                        money: parsed.money || 0,
+                        cps: parsed.cps || 0,
+                        cpc: parsed.cpc || 1,
+                        buildingsOwned: parsed.buildingsOwned || {},
+                        upgradesOwned: parsed.upgradesOwned || []
+                    };
+                    recalculateCPS();
+                    updateDisplay();
+                } catch (e) {
+                    console.error("Failed to load save", e);
+                }
+            }
+        }
+
+        function initBuildings() {
+            const buildingsTab = document.getElementById('buildingsTab');
+            for (const buildingId in buildings) {
+                const div = document.createElement('div');
+                div.className = 'building';
+                div.id = buildingId;
+                div.onclick = () => buyBuilding(buildingId);
+                buildingsTab.appendChild(div);
+            }
+        }
+
+                        function showChangelog() {
+                    document.getElementById('changelogModal').style.display = 'block';
+                }
+
+                function closeChangelog() {
+                    document.getElementById('changelogModal').style.display = 'none';
+                }
+
+    </script>
+</body>
+</html>
